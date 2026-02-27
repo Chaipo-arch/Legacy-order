@@ -4,6 +4,8 @@ Conserve le comportement legacy — run() retourne strictement la même sortie.
 """
 import os
 import math
+import json
+
 from .loader import (
     load_customers,
     load_products,
@@ -23,7 +25,6 @@ from .calculations import (
     compute_handling,
     currency_rate,
 )
-import json
 
 TAX = 0.2
 SHIPPING_LIMIT = 50
@@ -51,8 +52,8 @@ def run():
     # Grouping
     totals_by_customer = {}
     for o in orders:
-        cid = o['customer_id']
-        prod = products.get(o['product_id'], {})
+        cid = o.customer_id
+        prod = products.get(o.product_id)
         line_total, morning_bonus = apply_promotion_and_morning(o, products, promotions)
 
         if cid not in totals_by_customer:
@@ -65,7 +66,7 @@ def run():
             }
 
         totals_by_customer[cid]['subtotal'] += line_total
-        totals_by_customer[cid]['weight'] += prod.get('weight', 1.0) * o['qty']
+        totals_by_customer[cid]['weight'] += (prod.weight if prod else 1.0) * o.qty
         totals_by_customer[cid]['items'].append(o)
         totals_by_customer[cid]['morning_bonus'] += morning_bonus
 
@@ -77,16 +78,16 @@ def run():
     sorted_customer_ids = sorted(totals_by_customer.keys())
 
     for cid in sorted_customer_ids:
-        cust = customers.get(cid, {})
-        name = cust.get('name', 'Unknown')
-        level = cust.get('level', 'BASIC')
-        zone = cust.get('shipping_zone', 'ZONE1')
-        currency = cust.get('currency', 'EUR')
+        cust = customers.get(cid)
+        name = cust.name if cust else 'Unknown'
+        level = cust.level if cust else 'BASIC'
+        zone = cust.shipping_zone if cust else 'ZONE1'
+        currency = cust.currency if cust else 'EUR'
 
         sub = totals_by_customer[cid]['subtotal']
 
         disc = compute_volume_discount(sub, level)
-        first_order_date = totals_by_customer[cid]['items'][0].get('date', '') if totals_by_customer[cid]['items'] else ''
+        first_order_date = totals_by_customer[cid]['items'][0].date if totals_by_customer[cid]['items'] else ''
         disc = compute_weekend_bonus(disc, first_order_date)
 
         pts = loyalty_points.get(cid, 0)
