@@ -4,15 +4,8 @@ Conserve le comportement legacy — run() retourne strictement la même sortie.
 """
 import os
 import math
-import json
 
-from .loader import (
-    load_customers,
-    load_products,
-    load_shipping_zones,
-    load_promotions,
-    load_orders,
-)
+from .io_handler import read_data, write_report, write_json
 from .calculations import (
     compute_loyalty_points,
     apply_promotion_and_morning,
@@ -26,30 +19,12 @@ from .calculations import (
     currency_rate,
 )
 
-TAX = 0.2
-SHIPPING_LIMIT = 50
-handling_fee = 2.5
-MAX_DISCOUNT = 200
 
+def compute_report(customers, products, shipping_zones, promotions, orders):
+    """Logique métier pure — aucun I/O, testable sans fichiers."""
 
-def run():
-    base = os.path.dirname(__file__)
-    cust_path = os.path.join(base, 'data', 'customers.csv')
-    ord_path = os.path.join(base, 'data', 'orders.csv')
-    prod_path = os.path.join(base, 'data', 'products.csv')
-    ship_path = os.path.join(base, 'data', 'shipping_zones.csv')
-    promo_path = os.path.join(base, 'data', 'promotions.csv')
-
-    customers = load_customers(cust_path)
-    products = load_products(prod_path)
-    shipping_zones = load_shipping_zones(ship_path)
-    promotions = load_promotions(promo_path)
-    orders = load_orders(ord_path)
-
-    # Loyalty
     loyalty_points = compute_loyalty_points(orders)
 
-    # Grouping
     totals_by_customer = {}
     for o in orders:
         cid = o.customer_id
@@ -61,7 +36,6 @@ def run():
                 'subtotal': 0.0,
                 'items': [],
                 'weight': 0.0,
-                'promo_discount': 0.0,
                 'morning_bonus': 0.0,
             }
 
@@ -75,9 +49,7 @@ def run():
     grand_total = 0.0
     total_tax_collected = 0.0
 
-    sorted_customer_ids = sorted(totals_by_customer.keys())
-
-    for cid in sorted_customer_ids:
+    for cid in sorted(totals_by_customer.keys()):
         cust = customers.get(cid)
         name = cust.name if cust else 'Unknown'
         level = cust.level if cust else 'BASIC'
@@ -136,12 +108,23 @@ def run():
     output_lines.append(f'Total Tax Collected: {total_tax_collected:.2f} EUR')
 
     result = '\n'.join(output_lines)
+    return result, json_data
 
-    print(result)
 
+def run():
+    base = os.path.dirname(__file__)
+    data_dir = os.path.join(base, 'data')
     output_path = os.path.join(base, 'output.json')
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(json_data, f, indent=2)
+
+    # I/O : lecture
+    customers, products, shipping_zones, promotions, orders = read_data(data_dir)
+
+    # Business logic : pure
+    result, json_data = compute_report(customers, products, shipping_zones, promotions, orders)
+
+    # I/O : écriture
+    write_report(result)
+    write_json(json_data, output_path)
 
     return result
 

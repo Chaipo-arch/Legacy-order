@@ -1,4 +1,3 @@
-# discounts.py
 from datetime import datetime
 
 MAX_DISCOUNT = 200
